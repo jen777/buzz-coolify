@@ -119,7 +119,17 @@ BUZZ_S3_SECRET_KEY=REPLACE_WITH_STRONG_SECRET
 BUZZ_S3_BUCKET=buzz-media
 ```
 
-### 3. Generate secrets
+### 3. Configure S3 storage
+
+The S3 bucket is required for the default Buzz deployment because the relay uses object storage for media uploads and related file handling. By default, you do not need AWS or any cloud storage service for this setup. This Compose stack includes MinIO, which provides S3-compatible storage locally inside the deployment and creates the bucket automatically during startup using the `BUZZ_S3_BUCKET` value.
+
+- `BUZZ_S3_BUCKET` is required for the default deployment and should be a stable bucket name such as `buzz-media`.
+- The bundled MinIO service creates the bucket automatically, so you normally do not need to create it manually in Coolify.
+- If you want to use an external S3-compatible service instead of the bundled MinIO, set the matching endpoint and credentials as well, but the bucket name remains required.
+
+If you do not configure S3-compatible storage, media uploads and related object storage features will not work correctly.
+
+### 4. Generate secrets
 
 You can generate 64-character hexadecimal secrets with:
 
@@ -140,7 +150,7 @@ openssl rand -base64 36
 > [!WARNING]
 > Keep `BUZZ_RELAY_PRIVATE_KEY`, `BUZZ_GIT_HOOK_HMAC_SECRET`, database credentials, Redis credentials, S3 credentials, and the owner identity credentials stable and securely backed up. Changing them after deployment can break identity, access, or stored-data behavior.
 
-### 4. Configure the domain
+### 5. Configure the domain
 
 Assign the following domain to the `relay` service:
 
@@ -159,7 +169,7 @@ Coolify handles HTTPS certificates and reverse-proxy routing.
 
 Only the Buzz relay should be publicly accessible. PostgreSQL, Redis, and MinIO should remain internal to the Compose stack.
 
-### 5. Deploy
+### 6. Deploy
 
 Save the environment variables and start the deployment.
 
