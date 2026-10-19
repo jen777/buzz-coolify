@@ -14,7 +14,7 @@ This repository provides a small, Coolify-oriented deployment stack for the serv
 - Buzz relay and bundled web interface
 - PostgreSQL
 - Redis
-- MinIO-compatible object storage
+- S3-compatible object storage (RustFS)
 - Persistent Git data
 - Automatic database migrations
 
@@ -30,7 +30,7 @@ Buzz desktop / agents / CLI
              v
         Buzz relay
        /     |      \
-PostgreSQL  Redis   MinIO
+PostgreSQL  Redis  RustFS
              |
        Persistent volumes
 ```
@@ -113,7 +113,7 @@ POSTGRES_PASSWORD=REPLACE_WITH_STRONG_PASSWORD
 # Redis
 REDIS_PASSWORD=REPLACE_WITH_STRONG_PASSWORD
 
-# MinIO / S3
+# S3 storage (bundled RustFS)
 BUZZ_S3_ACCESS_KEY=REPLACE_WITH_RANDOM_ACCESS_KEY
 BUZZ_S3_SECRET_KEY=REPLACE_WITH_STRONG_SECRET
 BUZZ_S3_BUCKET=buzz-media
@@ -121,13 +121,19 @@ BUZZ_S3_BUCKET=buzz-media
 
 ### 3. Configure S3 storage
 
-The S3 bucket is required for the default Buzz deployment because the relay uses object storage for media uploads and related file handling. By default, you do not need AWS or any cloud storage service for this setup. This Compose stack includes MinIO, which provides S3-compatible storage locally inside the deployment and creates the bucket automatically during startup using the `BUZZ_S3_BUCKET` value.
+The S3 bucket is required for the default Buzz deployment because the relay uses object storage for media uploads and related file handling. By default, you do not need AWS or any cloud storage service for this setup. This Compose stack includes [RustFS](https://github.com/rustfs/rustfs), which provides S3-compatible storage locally inside the deployment, and an `s3-init` job that creates the bucket automatically during startup using the `BUZZ_S3_BUCKET` value.
 
 - `BUZZ_S3_BUCKET` is required for the default deployment and should be a stable bucket name such as `buzz-media`.
-- The bundled MinIO service creates the bucket automatically, so you normally do not need to create it manually in Coolify.
-- If you want to use an external S3-compatible service instead of the bundled MinIO, set the matching endpoint and credentials as well, but the bucket name remains required.
+- The bundled `s3-init` job creates the bucket automatically, so you normally do not need to create it manually in Coolify.
+- If you want to use an external S3-compatible service instead of the bundled RustFS, set the matching endpoint and credentials as well, but the bucket name remains required.
 
 If you do not configure S3-compatible storage, media uploads and related object storage features will not work correctly.
+
+#### Migrating from MinIO
+
+Earlier versions of this stack bundled MinIO, which is no longer maintained and no longer publishes container images. It has been replaced by RustFS, which uses the same `BUZZ_S3_*` variables, so `.env` does not need to change.
+
+RustFS stores data in a new `buzz-s3-data` volume. The old `buzz-minio-data` volume is left untouched. If you already have uploaded media, copy it into the new bucket (for example with `rclone sync` or `aws s3 sync` while both services run), verify the object counts, and only then remove the old volume.
 
 ### 4. Generate secrets
 
@@ -167,7 +173,7 @@ wss://buzz.example.com
 
 Coolify handles HTTPS certificates and reverse-proxy routing.
 
-Only the Buzz relay should be publicly accessible. PostgreSQL, Redis, and MinIO should remain internal to the Compose stack.
+Only the Buzz relay should be publicly accessible. PostgreSQL, Redis, and RustFS should remain internal to the Compose stack.
 
 ### 6. Deploy
 
@@ -254,7 +260,7 @@ The stack stores persistent data for:
 
 - PostgreSQL
 - Redis
-- MinIO
+- RustFS (S3 object storage)
 - Buzz Git repositories
 
 Back up all persistent volumes and the stable environment secrets.
@@ -262,7 +268,7 @@ Back up all persistent volumes and the stable environment secrets.
 At minimum, a recovery plan should include:
 
 1. A PostgreSQL logical or volume-level backup
-2. MinIO object data
+2. RustFS object data (`buzz-s3-data` volume)
 3. Buzz Git data
 4. Redis data, when needed for your recovery model
 5. All stable secrets and owner identity information
@@ -276,7 +282,7 @@ Test restoration before relying on the deployment for important work.
 - Use unique identities for humans, services, and agents.
 - Pin immutable container image versions in production.
 - Expose only the relay through Coolify.
-- Keep PostgreSQL, Redis, MinIO, health, and metrics ports private unless you have a specific protected monitoring setup.
+- Keep PostgreSQL, Redis, RustFS, health, and metrics ports private unless you have a specific protected monitoring setup.
 - Enable server firewalls and install Coolify and operating-system updates.
 - Review upstream Buzz security notices before upgrades.
 - Back up secrets in a password manager or secrets-management system.
